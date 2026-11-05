@@ -72,8 +72,8 @@ envoyé seulement à la centrale. Il n’est jamais écrit dans les journaux ni
 dans les fichiers de l’intégration. Quand la centrale répond « denied »
 (mauvais mot de passe, ou trop d’utilisateurs connectés à la centrale), la
 lecture suivante essaie une fois de plus ; un second refus de suite arrête
-toute connexion : le statut le dit, jusqu’à ce que vous enregistriez de
-nouveau le mot de passe ou appuyiez sur **Tester la connexion** (un essai
+toute connexion : le statut le dit, jusqu’à ce que vous enregistriez la
+configuration (le même mot de passe compte : un essai de plus) ou appuyiez sur **Tester la connexion** (un essai
 par appui). Après un redémarrage, l’intégration se souvient que ce mot de
 passe a été refusé (sous forme d’une courte empreinte qui ne permet pas de
 le retrouver) et ne le réessaie pas seule.
@@ -117,8 +117,11 @@ lecture en échec ou d’une attente entre deux essais, de l’identifiant, de
 /data, ni d’une configuration pas encore relue depuis Gladys ou devenue
 invalide (il va alors à l’adresse de l’arrêt gardé, sinon à la dernière
 adresse valide gardée dans /data). Il est réessayé pendant 3,5 s après
-l’appui ; une réponse qui cesse d’arriver pendant 1 s est coupée et l’arrêt
-renvoyé.
+l’appui ; une réponse à l’arrêt qui cesse d’arriver pendant 1 s est coupée
+et l’arrêt renvoyé. Si la session a expiré, il se reconnecte une fois par
+appui (la connexion peut prendre les 3,5 s : chaque connexion prend une
+place sur la centrale). Il est confirmé quand la centrale relit le mode
+arrêt (ou en cours d’arrêt) et le programme manuel.
 
 Il ne peut échouer que dans ces cas, et la réponse le dit :
 
@@ -155,8 +158,11 @@ passe, sinon juste après.
 ## Identité de la centrale
 
 L’appareil est lié à l’**identifiant** que donne la centrale (registres
-H12300 à H12309), appris à la première lecture ; une centrale qui n’en donne
-pas est l’appareil « unit ». Quand un autre identifiant est lu à l’adresse,
+H12300 à H12309), appris à la première lecture ; l’identifiant est lu
+jusqu’au premier registre vide, espaces de fin retirés (les espaces au
+milieu sont gardés, écrits « - » dans l’identifiant de l’appareil) ; une
+centrale qui n’en donne pas (registres absents ou vides) est l’appareil
+« unit ». Quand un autre identifiant est lu à l’adresse,
 une autre centrale répond peut-être : ses valeurs ne sont pas écrites dans
 l’ancien appareil, et le mode et la puissance sont refusés jusqu’à ce que
 **Tester la connexion** l’accepte ; elle devient alors un nouvel appareil

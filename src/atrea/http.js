@@ -164,10 +164,17 @@ export function httpGet({
     idle = timers.setTimeout(() => fail(ERROR_KINDS.STALLED, 'answer stalled'), idleMs);
   };
 
-  /** The answer, once complete (or at the close when it has no length). */
-  const complete = (atClose) => {
-    const buffer = Buffer.concat(chunks, size);
+  /**
+   * The answer, once complete (or at the close when it has no length).
+   * Linear: the buffer is joined only while looking for the end of the headers
+   * (8 KB at most) and once when the body is complete; a chunked body is
+   * decoded once, at its last chunk or at the close.
+   */
+  let tail = '';
+  const complete = (atClose, chunk) => {
+    if (chunk) tail = (tail + chunk.subarray(-7).toString('latin1')).slice(-7);
     if (bodyStart < 0) {
+      const buffer = Buffer.concat(chunks, size);
       const at = buffer.indexOf('\r\n\r\n');
       if (at < 0) {
         if (size > LIMITS.maxHeader) fail(ERROR_KINDS.PROTOCOL, 'headers too large');
@@ -184,17 +191,22 @@ export function httpGet({
         return;
       }
       bodyStart = at + 4;
+      // One buffer from now on (the headers are never joined again).
+      chunks.length = 0;
+      chunks.push(buffer);
     }
-    const body = buffer.subarray(bodyStart);
-    if (body.length > maxBody + (head.headers.has('transfer-encoding') ? 64 * 1024 : 0)) {
+    const bodyLength = size - bodyStart;
+    if (bodyLength > maxBody + (head.headers.has('transfer-encoding') ? 64 * 1024 : 0)) {
       fail(ERROR_KINDS.PROTOCOL, 'answer too large');
       return;
     }
     const lengthText = head.headers.get('content-length');
     const chunked = /chunked/i.test(head.headers.get('transfer-encoding') ?? '');
+    const body = () => Buffer.concat(chunks, size).subarray(bodyStart);
     let text;
     if (chunked) {
-      const decoded = unchunk(body);
+      if (!atClose && !tail.endsWith('0\r\n\r\n')) return;
+      const decoded = unchunk(body());
       if (decoded === undefined) {
         if (atClose) fail(ERROR_KINDS.CLOSED, 'closed inside the answer');
         return;
@@ -210,14 +222,14 @@ export function httpGet({
         return;
       }
       const length = Number(lengthText);
-      if (body.length < length) {
+      if (bodyLength < length) {
         if (atClose) fail(ERROR_KINDS.CLOSED, 'closed inside the answer');
         return;
       }
-      text = body.subarray(0, length).toString('latin1');
+      text = body().subarray(0, length).toString('latin1');
     } else {
       if (!atClose) return;
-      text = body.toString('latin1');
+      text = body().toString('latin1');
     }
     end(undefined, { status: head.status, body: text });
   };
@@ -275,7 +287,7 @@ export function httpGet({
       return;
     }
     chunks.push(chunk);
-    complete(false);
+    complete(false, chunk);
   });
   socket.on('error', () => {
     fail(sent ? ERROR_KINDS.CLOSED : ERROR_KINDS.UNREACHABLE, 'socket error');

@@ -22,6 +22,15 @@ up to date at the end of every milestone.
       kept until a mode is chosen, never given up before it left; test
       button, docs en/fr, cover. Tested against a fake unit only (and a real
       HTTP server of gladys-testkit at x20).
+- [x] **Review r1 fixes** (2026-11-05): the stop signs in once per press,
+      bounded by its budget, never by the 1 s cut of its write; a "denied"
+      after a sign-in we cut is not a refusal (B1); no busy loop of the reads
+      while no sign-in is possible (I1); any save of the configuration lifts
+      a refusal (one try), a changed password always (I2); unit IDs with
+      blanks or empty (I3); tests for the guards of the stop path (I4);
+      status at once after a stop, restart timing, linear parsing, notices,
+      stop confirmed by the manual program too, a stop joins only a stop to
+      the same address (m1-m6). Tests in `test/review-r1.test.js`.
 - [ ] **Milestone 2 — real unit**: run against a real RD5 unit (see "To check").
 - [ ] **Milestone 3 — more**: alarm reset (C10005) and filter
       acknowledgement (C10007) as buttons behind the option (one-shot
@@ -48,6 +57,8 @@ up to date at the end of every milestone.
 - What H10705 reads right after a mode written (immediately, or after a
   delay: then "not applied yet" is the normal first answer), and right
   after the stop (`off` or `rundown`).
+- The stop is confirmed only when H10705 reads off/rundown AND H10700 reads
+  the manual program (when readable): check that both show right after it.
 - That the stop (manual program, mode off) stops the unit and the weekly
   program does not start it again; that writing H10703 is harmless on units
   that do not use it.
@@ -78,7 +89,8 @@ up to date at the end of every milestone.
 - **The stop** = manual program + mode off (pyatrea `setProgram(MANUAL)` +
   `setMode(OFF)`), as HomeAssistant-Atrea turns the unit off: the weekly
   program would start it again. Confirmed by H10705 read off (0) or
-  stopping (`rundown`, 10). No sign-in to another address than the
+  stopping (`rundown`, 10) and H10700 read manual (when readable). One
+  sign-in per press at most, bounded by the stop's 3.5 s. No sign-in to another address than the
   configured one (the password belongs to that unit). At container start,
   the kept stop goes first without a session (the password is not known
   before the configuration), then right after the configuration is read.
@@ -87,6 +99,13 @@ up to date at the end of every milestone.
   or stopping (it may start it) and while a stop is kept.
 - **Weekly program**: a mode or a power written under it makes the program
   temporary in the same request (pyatrea, HomeAssistant-Atrea).
+- **Unit ID rule (frozen)**: read up to the first 0, trailing blanks
+  removed, printable 0x20-0x7e kept inside (a blank becomes "-" in the
+  platform id); empty = no ID (`atrea:unit`); unreadable only for a register
+  that is not a number or holds another code.
+- **Refusal**: any save of the configuration by the user lifts it (the same
+  password: one try; another one: always lifted, the 6-bit mark only serves
+  after a restart); a reconnection to Gladys never does.
 - **Device id**: `atrea:id-<unit ID>` (H12300-H12309), `atrea:unit` for a
   unit without these registers; learnt once per address in /data; another ID
   read refuses the commands until the test button accepts it (a new device).

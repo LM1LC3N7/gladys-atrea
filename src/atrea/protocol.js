@@ -68,14 +68,19 @@ export const isForbidden = (status, body) =>
  */
 export function parseLogin(body) {
   if (typeof body !== 'string' || body.length > 4096) return undefined;
-  const match =
-    /^\s*(?:<\?xml[^>]{0,200}\?>\s*)?<([A-Za-z][\w-]{0,30})(?:\s[^<>]{0,200})?>\s*([^<]{0,64}?)\s*<\/\1>\s*$/.exec(
-      body,
-    );
+  // Linear: trimmed first, the declaration cut by position, then one regex
+  // whose parts never overlap (no backtracking on blanks).
+  let text = body.trim();
+  if (text.startsWith('<?xml')) {
+    const end = text.indexOf('?>');
+    if (end < 0 || end > 200) return undefined;
+    text = text.slice(end + 2).trimStart();
+  }
+  const match = /^<([A-Za-z][\w-]{0,30})(?:\s[^<>]{0,200})?>([^<]{0,200})<\/\1>$/.exec(text);
   if (!match) return undefined;
-  const text = match[2];
-  if (text === 'denied') return { denied: true };
-  return LIMITS.code.test(text) ? { code: text } : undefined;
+  const value = match[2].trim();
+  if (value === 'denied') return { denied: true };
+  return LIMITS.code.test(value) ? { code: value } : undefined;
 }
 
 const ATTRIBUTE = /([A-Za-z][\w-]{0,30})\s*=\s*"([^"]{0,200})"/g;
@@ -153,8 +158,11 @@ const percent = (raw) => {
 };
 
 /**
- * The unit ID (H12300-H12309, one character code each): a string, null when
- * the unit has none of these registers, undefined when they are unreadable.
+ * The unit ID (H12300-H12309, one character code each), FROZEN RULE: read up
+ * to the first 0 (NUL), trailing spaces removed, any printable character
+ * (0x20-0x7e) kept inside. A string; null when the unit gives none (the
+ * registers missing, or an empty ID: never typed in); undefined when a
+ * register is not a number or holds a code outside 0x20-0x7e.
  */
 export function unitId(map) {
   if (REG.ID.every((register) => !map.has(register))) return null;
@@ -163,10 +171,11 @@ export function unitId(map) {
     const code = wholeNumber(map.get(register));
     if (code === undefined) return undefined;
     if (code === 0) break;
-    if (code < 0x21 || code > 0x7e) return undefined;
+    if (code < 0x20 || code > 0x7e) return undefined;
     text += String.fromCharCode(code);
   }
-  return text.length >= 1 ? text : undefined;
+  text = text.replace(/ +$/, '');
+  return text.length >= 1 ? text : null;
 }
 
 /**

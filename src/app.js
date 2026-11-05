@@ -405,7 +405,10 @@ export class AtreaApp {
       return 0;
     }
     const now = this.now();
-    this.lastAttemptAt = Math.max(this.lastAttemptAt, this.mono() - (now - stored));
+    // The time kept may be up to a minute older than the last read (written at
+    // most once a minute): the last read counts as that minute later, never later than now.
+    const latest = Math.min(stored + TIMINGS.attemptWriteEvery, now);
+    this.lastAttemptAt = Math.max(this.lastAttemptAt, this.mono() - (now - latest));
     const due = stored + TIMINGS.attemptWriteEvery + this.interval;
     return Math.min(this.interval, Math.max(0, due - now));
   }
@@ -525,17 +528,26 @@ export class AtreaApp {
       return;
     }
     this.config = next;
-    if (next.password !== previous.password) {
-      // New credentials: a new session, the refusal lifted, a stop that never left goes first.
+    const changed = next.password !== previous.password;
+    if (changed) {
+      // New credentials: a new session, the refusal always lifted (the mark of
+      // /data only serves after a restart, when the old password is not known).
       this.code = '';
       this.denials = 0;
-      this.refused = this.refusalKept();
-      if (!this.refused && this.memory.refused?.unit === this.unitKey()) {
+      this.refused = false;
+      if (this.memory.refused?.unit === this.unitKey()) {
         this.memory.refused = null;
         if (!this.memoryUnreadable) this.saveSoon().catch(() => {});
       }
       this.logger.info('Atrea: new password saved');
-      if (this.ownGuard()?.pending) this.flushStop();
+    } else if (!reconnected && this.refused) {
+      // The same password saved again by the user: one more try, as the test button.
+      this.refused = false;
+      this.denials = 1;
+      this.logger.info('Atrea: password saved again, one more try');
+    }
+    if ((changed || !reconnected) && this.ownGuard()?.pending && !this.config.badPassword) {
+      this.flushStop();
     }
     this.rescheduleOnNewInterval(previous);
     if (this.config.allowCommands !== previous.allowCommands) {
@@ -657,11 +669,21 @@ export class AtreaApp {
     if (!this.loginAllowed(line)) {
       throw new AtreaError(ERROR_KINDS.NO_LOGIN, 'no sign-in possible');
     }
-    const answer = await this.get(
-      line,
-      loginPath(loginKey(this.config.password), this.code, this.random),
-      { ...options, beforeSend: undefined },
-    );
+    let answer;
+    try {
+      answer = await this.get(
+        line,
+        loginPath(loginKey(this.config.password), this.code, this.random),
+        { ...options, beforeSend: undefined, startBy: undefined },
+      );
+    } catch (err) {
+      if (err?.sent) {
+        // Cut by us after it left: the unit may have opened a session we never saw.
+        // The next "denied" may come from that lost place: it never counts as a refusal.
+        this.loginCut = true;
+      }
+      throw err;
+    }
     if (answer.status !== 200) {
       throw new AtreaError(ERROR_KINDS.HTTP, 'sign-in answered badly', { status: answer.status });
     }
@@ -674,6 +696,7 @@ export class AtreaApp {
       throw new AtreaError(ERROR_KINDS.DENIED, 'password denied');
     }
     this.code = parsed.code;
+    this.loginCut = false;
   }
 
   /**
@@ -681,7 +704,7 @@ export class AtreaApp {
    * sign-in (when allowed) and the request once more. `notApplied` is called
    * when the unit answered the "403" page (the request did nothing).
    */
-  async authed(line, build, options = {}, { login = true, notApplied } = {}) {
+  async authed(line, build, options = {}, { login = true, notApplied, onLogin } = {}) {
     const first = await this.get(line, build(this.code), options);
     if (!isForbidden(first.status, first.body)) {
       return first;
@@ -691,6 +714,7 @@ export class AtreaApp {
       throw new AtreaError(ERROR_KINDS.FORBIDDEN, 'session needed');
     }
     this.code = '';
+    onLogin?.();
     await this.login(line, options.loginOptions ?? options);
     const second = await this.get(line, build(this.code), options);
     if (isForbidden(second.status, second.body)) {
@@ -705,6 +729,11 @@ export class AtreaApp {
 
   /** A "denied" (or a session refused right after a sign-in): the second in a row is a refusal. */
   noteDenied() {
+    if (this.loginCut) {
+      this.loginCut = false;
+      this.logger.info('Atrea: denied after a sign-in we cut; not counted as a refusal');
+      return;
+    }
     this.denials += 1;
     if (this.denials < 2 || this.refused) return;
     this.refused = true;
@@ -830,7 +859,8 @@ export class AtreaApp {
     if (this.refused || this.config.badPassword) {
       // No automatic sign-in: the status says why; the test button or a new password resumes.
       await this.publishAll();
-      if (generation === this.generation) this.schedule();
+      // Checked again at the interval, never at once (no read went, `due` does not move).
+      if (generation === this.generation) this.schedule(this.interval);
       return;
     }
     const startedAt = this.mono();
@@ -1559,13 +1589,17 @@ export class AtreaApp {
   /** A second press while one runs joins it. */
   async protect(received, target, { reassert = false } = {}) {
     if (this.protecting) {
-      if (this.protectUntil - this.mono() >= TIMINGS.stopJoinMin) {
+      if (
+        this.protectTarget === target.unit &&
+        this.protectUntil - this.mono() >= TIMINGS.stopJoinMin
+      ) {
         return this.protecting;
       }
       await this.protecting.catch(() => {});
       return this.protect(this.mono(), target, { reassert });
     }
     this.protectUntil = received + TIMINGS.commandSendBy;
+    this.protectTarget = target.unit;
     const promise = this.sendStop(received, target, { reassert });
     this.protecting = promise;
     try {
@@ -1574,6 +1608,8 @@ export class AtreaApp {
       if (this.protecting === promise) {
         this.protecting = undefined;
       }
+      // The status says where the stop stands at once, never at the next read only.
+      if (!this.closed) this.updateStatus().catch(() => {});
     }
   }
 
@@ -1607,7 +1643,7 @@ export class AtreaApp {
     const guard = this.stopGuard;
     // Kept before the first byte; /data is given a short moment, never awaited longer.
     await this.bounded(this.persistStopGuard(), TIMINGS.stopSaveWait).catch(() => {});
-    const state = { written: false, counted: false };
+    const state = { written: false, counted: false, loginTried: false };
     const retryUntil = received + TIMINGS.commandSendBy;
     const count = () => {
       // Only a send that left counts (a "403" page, a refused connection, never).
@@ -1620,12 +1656,16 @@ export class AtreaApp {
     const attempt = async (line) => {
       const timeout = Math.max(250, Math.min(TIMINGS.requestTimeout, retryUntil - this.mono()));
       const options = { timeoutMs: timeout, idleMs: TIMINGS.stopIdle };
+      // The sign-in: once per press, bounded by the stop's budget only (never
+      // the 1 s cut of the write: a slow sign-in still takes a place on the unit).
+      const signIn = Math.max(250, retryUntil - this.mono());
       try {
         const answer = await this.authed(
           line,
           (code) => writePath(code, STOP_WRITES, this.random),
           {
             ...options,
+            loginOptions: { timeoutMs: signIn, idleMs: signIn },
             beforeSend: () => {
               state.written = true;
               this.lastSentAt = this.mono();
@@ -1633,6 +1673,10 @@ export class AtreaApp {
             },
           },
           {
+            login: !state.loginTried,
+            onLogin: () => {
+              state.loginTried = true;
+            },
             notApplied: () => {
               state.written = false;
             },
@@ -1687,7 +1731,12 @@ export class AtreaApp {
     });
     this.timers.clearTimeout(late);
     const own = this.stopGuard === guard;
-    const stopped = (values) => values && STOPPED_MODES.has(values.modeId);
+    // Off (or stopping) AND in the manual program, when the program is readable:
+    // a unit that kept the weekly program would start again at its next slot.
+    const stopped = (values) =>
+      values &&
+      STOPPED_MODES.has(values.modeId) &&
+      (values.program === undefined || values.program === 'manual');
     if (stopped(outcome.back)) {
       if (own) {
         guard.pending = false;

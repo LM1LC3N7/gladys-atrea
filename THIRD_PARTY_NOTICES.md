@@ -31,7 +31,7 @@ one session kept and a sign-in only on the "403" page, never in a loop; the
 old RD4 registers (H01000 and the like), the `lang/` and `cfgdir.xml` pages
 (translations, model) and the one-shot commands are not used.
 
-````
+```
 MIT License
 
 Copyright (c) [year] [fullname]
@@ -52,7 +52,8 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.```
+SOFTWARE.
+```
 
 ## HomeAssistant-Atrea
 
@@ -71,4 +72,3 @@ Changed: the device, its features and the commands are the integration's own
 (no climate entity: a mode list, a fan power and a stop button); the alarm
 reset and filter acknowledgement buttons, the IN1/IN2/SA1 sensors, the air
 flows and the D1-D4 inputs are not used.
-````

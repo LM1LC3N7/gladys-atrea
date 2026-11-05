@@ -70,6 +70,8 @@ export function atreaCore({ registers = defaultRegisters() } = {}) {
     nextCode: 5000,
     /** Writes acknowledged but not applied. */
     ignoreWrites: false,
+    /** The program writes (H10700-H10703) ignored, the rest applied. */
+    ignoreProgram: false,
     /** A write of mode 0 shows "rundown" (10) instead of "off" (0). */
     rundown: false,
     /** The metadata page refused or broken. */
@@ -100,6 +102,7 @@ export function atreaCore({ registers = defaultRegisters() } = {}) {
       core.onWrite?.(writes);
       if (core.ignoreWrites) return;
       for (const [register, value] of writes) {
+        if (core.ignoreProgram && /^H1070[0-3]$/.test(register)) continue;
         core.registers.set(register, String(value));
         if (register === 'H10709') {
           core.registers.set('H10705', String(value === 0 && core.rundown ? 10 : value));
@@ -194,6 +197,8 @@ export function fakeAtrea(options = {}) {
     connections: 0,
     refused: 0,
     down: false,
+    /** Hosts that refuse the connection. */
+    downHosts: new Set(),
     connectDelay: 5,
     delay: 10,
     delays: {},
@@ -256,7 +261,7 @@ export function fakeAtrea(options = {}) {
       unit.connections += 1;
       setTimeout(() => {
         if (socket.destroyed) return;
-        if (unit.down) {
+        if (unit.down || unit.downHosts.has(host)) {
           unit.refused += 1;
           socket.emit('error', Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }));
           return;

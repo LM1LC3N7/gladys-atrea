@@ -67,8 +67,8 @@ The password is kept by Gladys in its database, never shown again, sent
 only to the unit. It is never written in the logs nor in the integration's
 files. When the unit answers "denied" (wrong password, or too many users
 signed in to the unit), the next read tries once more; a second refusal in
-a row stops every sign-in: the status says so, until you save the password
-again or press **Test the connection** (one try per press). After a
+a row stops every sign-in: the status says so, until you save the configuration (the same password counts: one more try)
+or press **Test the connection** (one try per press). After a
 restart, the integration remembers that this password was refused (as a
 short fingerprint that cannot give the password back), so it does not try
 it again on its own.
@@ -110,8 +110,11 @@ progress or stuck (it is interrupted), on a failed read or a wait between
 two tries, on the unit ID, on /data, nor on the configuration not read
 again from Gladys yet or made invalid since (it then goes to the address of
 the kept stop, else the last valid one kept in /data). It is tried again for
-3.5 s after the press; an answer that stops coming for 1 s is cut and the
-stop sent again.
+3.5 s after the press; an answer to the stop that stops coming for 1 s is
+cut and the stop sent again. When the session expired, it signs in once per
+press (the sign-in may take the whole 3.5 s: each sign-in takes a place on
+the unit). It is confirmed when the unit reads the mode off (or stopping)
+and the manual program.
 
 It can fail in these cases only, and the answer says so:
 
@@ -142,8 +145,10 @@ the unit asks for no password, else right after it.
 ## Identity of the unit
 
 The device is tied to the **unit ID** the unit gives (registers H12300 to
-H12309), learnt at the first read; a unit that gives none is the device
-"unit". When another ID is read at the address, another unit may answer
+H12309), learnt at the first read; the ID is read up to
+its first empty register, trailing blanks removed (blanks inside are kept,
+shown as "-" in the device id); a unit that gives none (registers missing
+or empty) is the device "unit". When another ID is read at the address, another unit may answer
 there: its values are not written into the old device, and the mode and the
 fan power are refused until **Test the connection** accepts it; it then
 becomes a new device in Discovery (the stop never depends on it). An ID

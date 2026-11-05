@@ -90,4 +90,8 @@ test('the image ships the license and the third-party notices', () => {
   assert.match(notices, /HomeAssistant-Atrea/);
   assert.match(notices, /Apache License, Version 2\.0/);
   assert.match(notices, /Permission is hereby granted, free of charge/);
+  // Every code block closed on its own line (the sections after it render as text).
+  const fences = notices.split('\n').filter((l) => l.startsWith('```'));
+  assert.ok(fences.length % 2 === 0 && fences.every((l) => l === '```'), 'code fences');
+  assert.doesNotMatch(notices, /[^\n]```/);
 });
