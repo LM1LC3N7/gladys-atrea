@@ -1,67 +1,172 @@
-# Template de démonstration
+# Atrea pour Gladys
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Affiche une ventilation double flux **Atrea** à régulation **RD5** (Duplex,
+ECV…) dans Gladys, par la **page web** de la centrale sur votre réseau
+local, sans cloud ni compte. Intégration non officielle, **sans lien avec
+Atrea**. **Jamais testé avec un vrai appareil** : Atrea ne publie aucune
+documentation de cette interface web ; l’intégration lit et écrit les pages
+et registres qu’utilisent la bibliothèque libre pyatrea et l’intégration
+HomeAssistant-Atrea (Home Assistant) ; merci de signaler ce que vous
+observez.
+
+## Avant de commencer
+
+- La centrale doit être sur votre réseau et sa page web doit s’ouvrir depuis
+  un navigateur (port 80). Donnez-lui une adresse IP fixe dans votre box.
+- Notez le **mot de passe de la page web** (laissez le champ vide si la page
+  n’en demande pas). La centrale n’accepte que peu d’utilisateurs connectés à
+  la fois : Gladys garde une seule session et ne se reconnecte que lorsque la
+  centrale le demande.
+- La page web est en HTTP simple : la connexion passe sur votre réseau local
+  comme celle de votre navigateur. Gardez la centrale sur un réseau de
+  confiance.
+
+## Installation
+
+1. Installez l’intégration depuis le store de Gladys.
+2. Saisissez l’**adresse IP de la centrale** (port 80 sauf si vous en
+   ajoutez un) et le **mot de passe de sa page web** ; enregistrez.
+3. Ouvrez l’onglet **Découverte** et ajoutez la centrale.
 
 ## Ce que vous obtenez
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+Un appareil, **Ventilation Atrea**, avec :
 
-## Configuration
+| Fonctionnalité                                                                                | Remarques                                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Températures extérieure, de soufflage, d’extraction, de rejet, intérieure, extérieure moyenne | °C                                                                                                                                                                                                                                                                   |
+| Température demandée                                                                          | °C, lecture seule                                                                                                                                                                                                                                                    |
+| Puissance de ventilation demandée                                                             | %, 12 à 100, une commande (voir plus bas)                                                                                                                                                                                                                            |
+| Puissance de ventilation actuelle                                                             | %, lecture seule                                                                                                                                                                                                                                                     |
+| Mode de ventilation                                                                           | liste : automatique, ventilation, circulation et ventilation, circulation, rafraîchissement nocturne, déséquilibre, surpression                                                                                                                                      |
+| Mode en cours                                                                                 | texte : `off`, `automatic`, `ventilation`, `circulation-ventilation`, `circulation`, `night-precooling`, `disbalance`, `overpressure`, `periodic-ventilation`, `startup`, `rundown`, `defrosting`, `external`, `hp-defrosting`, `in1`, `in2`, `d1`, `d2`, `d3`, `d4` |
+| Programme de commande                                                                         | texte : `manual` (manuel), `weekly` (hebdomadaire), `temporary` (temporaire)                                                                                                                                                                                         |
+| Centrale en marche                                                                            | 1 = en marche ; 0 = arrêtée ou en cours d’arrêt (`rundown`)                                                                                                                                                                                                          |
+| Chauffage, rafraîchissement, filtres à changer                                                | lecture seule, 1 = oui                                                                                                                                                                                                                                               |
+| Alertes actives, avertissements actifs, codes d’alarme                                        | des nombres ; texte `none` ou les codes de la centrale (`D11180, D11183`)                                                                                                                                                                                            |
+| Arrêter la centrale                                                                           | bouton                                                                                                                                                                                                                                                               |
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+Une valeur hors de sa plage, vide ou qui n’est pas un nombre n’est jamais
+publiée : Gladys garde la dernière valeur connue. Les listes d’alertes et
+d’avertissements viennent d’une seconde page de la centrale, lue une fois
+par heure : si elle échoue, les autres valeurs sont publiées quand même et
+les fonctionnalités d’alarme restent inconnues jusqu’à sa lecture. Les
+débits d’air (m³/h) et le by-pass ne sont pas publiés.
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+La centrale est lue toutes les 60 s (30 s à 1 h). Le bouton de test, une
+recherche dans Découverte, une reconnexion de Gladys ou un redémarrage de
+l’intégration ne la lisent jamais avant l’intervalle. Lectures hors
+intervalle :
 
-## Actions
+- chaque commande relit la centrale juste avant d’écrire, puis relit le
+  résultat ;
+- « Arrêter la centrale » et ses renvois ;
+- 5 s puis 20 s après une commande ou un arrêt non confirmé, ou après un
+  arrêt qui suit une commande non confirmée ;
+- une nouvelle adresse enregistrée est lue tout de suite.
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+## Le mot de passe
 
-## Scènes
+Le mot de passe est gardé par Gladys dans sa base, jamais réaffiché,
+envoyé seulement à la centrale. Il n’est jamais écrit dans les journaux ni
+dans les fichiers de l’intégration. Quand la centrale répond « denied »
+(mauvais mot de passe, ou trop d’utilisateurs connectés à la centrale), la
+lecture suivante essaie une fois de plus ; un second refus de suite arrête
+toute connexion : le statut le dit, jusqu’à ce que vous enregistriez de
+nouveau le mot de passe ou appuyiez sur **Tester la connexion** (un essai
+par appui). Après un redémarrage, l’intégration se souvient que ce mot de
+passe a été refusé (sous forme d’une courte empreinte qui ne permet pas de
+le retrouver) et ne le réessaie pas seule.
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+## Commandes
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+Le mode et la puissance de ventilation sont refusés tant que **Autoriser
+les commandes** est désactivé (par défaut). Aucun interrupteur : le « tout
+éteindre » d’un assistant vocal n’atteint jamais la ventilation.
 
-## Tableau de bord
+- Chaque commande relit la centrale juste avant d’écrire (mode, programme,
+  puissance, modes que la centrale permet de choisir, identifiant), n’écrit
+  rien si la valeur est déjà la bonne, et n’est confirmée que si la
+  centrale relit la valeur demandée. Une relecture qui montre encore l’état
+  d’avant répond « pas encore appliquée » ; une commande qui a pu atteindre
+  la centrale sans confirmation répond « envoyée, sans confirmation » :
+  vérifiez la centrale quelques secondes plus tard. Une commande qui ne peut
+  pas partir dans les 3,5 s est refusée et rien n’est envoyé.
+- Sous le **programme hebdomadaire**, un changement passe le programme en
+  **temporaire**, comme le fait la page web de la centrale.
+- Refusée : un mode que la centrale ne permet pas de choisir (sa liste des
+  modes modifiables, relue à chaque fois), quand l’**identifiant** lu
+  diffère de celui appris ou est illisible (voir plus bas), quand **/data**
+  ne peut pas être lu ou écrit, quand l’état de la centrale n’a pas pu être
+  relu juste avant, quand aucune session ne peut être ouverte (pas de mot de
+  passe, ou refusé).
+- **Un mode démarre une centrale arrêtée** : avec l’option activée, choisir
+  un mode est la façon de redémarrer la centrale depuis Gladys. Il lève un
+  arrêt envoyé depuis Gladys (voir plus bas).
+- La **puissance** est un nombre entier de 12 à 100 % ; elle est refusée
+  sur une centrale **arrêtée ou en cours d’arrêt**, et tant qu’un **arrêt
+  envoyé depuis Gladys est gardé** : choisissez d’abord un mode.
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+### Arrêter la centrale
 
-## Dépannage
+« Arrêter la centrale » passe en programme manuel et en mode arrêt (le
+programme hebdomadaire relancerait la centrale). Il ne dépend **pas** de
+l’option, d’une autre commande (une commande pas encore écrite est
+annulée), d’une lecture en cours ou bloquée (elle est interrompue), d’une
+lecture en échec ou d’une attente entre deux essais, de l’identifiant, de
+/data, ni d’une configuration pas encore relue depuis Gladys ou devenue
+invalide (il va alors à l’adresse de l’arrêt gardé, sinon à la dernière
+adresse valide gardée dans /data). Il est réessayé pendant 3,5 s après
+l’appui ; une réponse qui cesse d’arriver pendant 1 s est coupée et l’arrêt
+renvoyé.
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+Il ne peut échouer que dans ces cas, et la réponse le dit :
+
+- aucune adresse connue (jamais d’adresse valide configurée) : « non
+  envoyé » ;
+- la centrale demande une session et aucun mot de passe ne peut être
+  essayé (aucun enregistré, refusé deux fois, ou l’arrêt va à une autre
+  adresse que celle configurée) : « non envoyé », gardé, et envoyé en
+  premier dès qu’un mot de passe est enregistré ou que le bouton de test
+  réussit ;
+- la centrale refuse le mot de passe : « non envoyé », gardé, envoyé en
+  premier à la lecture suivante ;
+- la centrale ne peut pas être jointe dans les 3,5 s : « non envoyé » (ou
+  « pas encore envoyé » tant qu’il essaie encore), gardé, envoyé en premier
+  à la lecture suivante ;
+- pas de réponse, une réponse d’erreur, ou la centrale relue encore en
+  marche : « envoyé, sans confirmation ».
+
+L’arrêt est ensuite **gardé** (dans /data, avec l’adresse). Un arrêt qui
+n’a jamais atteint la centrale n’est jamais abandonné : il part en premier
+à chaque lecture jusqu’à son envoi (tant qu’aucun mot de passe ne peut être
+essayé, il attend un nouveau mot de passe ou un test réussi) ; seul un envoi effectivement parti
+compte comme essai. L’arrêt gardé n’est jamais levé par le temps, seulement
+par un mode choisi depuis Gladys (avec l’option), ou quand la centrale est
+lue en marche **deux fois de suite** après avoir été vue arrêtée (relancée
+depuis son panneau). Tant qu’il est gardé, une lecture qui
+trouve la centrale en marche avant de l’avoir vue arrêtée (ou après une
+commande qui pourrait encore arriver) renvoie l’arrêt, trois envois au
+plus ; le statut le dit. Un arrêt qui n’a peut-être pas abouti quand
+l’intégration s’est arrêtée est renvoyé à son redémarrage, avant la
+relecture de la configuration quand la centrale ne demande pas de mot de
+passe, sinon juste après.
+
+## Identité de la centrale
+
+L’appareil est lié à l’**identifiant** que donne la centrale (registres
+H12300 à H12309), appris à la première lecture ; une centrale qui n’en donne
+pas est l’appareil « unit ». Quand un autre identifiant est lu à l’adresse,
+une autre centrale répond peut-être : ses valeurs ne sont pas écrites dans
+l’ancien appareil, et le mode et la puissance sont refusés jusqu’à ce que
+**Tester la connexion** l’accepte ; elle devient alors un nouvel appareil
+dans Découverte (l’arrêt n’en dépend jamais). Un identifiant illisible
+n’est jamais pris pour une autre centrale, mais les commandes sont
+refusées.
+
+## Ce que l’intégration ne fait pas
+
+Elle ne met jamais à jour le micrologiciel, ne change ni les réglages (sauf le
+programme : voir l’arrêt et le programme hebdomadaire plus haut), ni
+les programmes horaires, ni la température demandée, n’acquitte jamais les
+alarmes ni les filtres, ne lit pas les traductions de la page web.
