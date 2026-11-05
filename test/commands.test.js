@@ -156,9 +156,9 @@ test('the option turned off between the click and the write: not sent', async (t
   ctx.unit.delays['/config/xml.xml'] = 300;
   const acking = ctx.fire('fan-power', 80);
   await ctx.advance(100);
-  await ctx.gladys.fake.configUpdated(CFG);
+  await ctx.until(ctx.gladys.fake.configUpdated(CFG));
   await ctx.advance(2 * SECOND, 50);
-  const ack = await acking;
+  const ack = await ctx.until(acking, 'the ack');
   assert.equal(ack.success, false);
   assert.deepEqual(writesOf(ctx), []);
 });
@@ -172,7 +172,7 @@ test('a read begun before a command left is not applied', async (t) => {
   await ctx.advance(1150, 50);
   const ack = ctx.fire('fan-power', 90);
   await ctx.advance(5 * SECOND, 50);
-  assert.equal((await ack).success, true);
+  assert.equal((await ctx.until(ack, 'the ack')).success, true);
   const later = ctx.gladys.fake.states
     .slice(statesBefore)
     .filter((s) => s.device_feature_external_id === feature('fan-power'));
@@ -212,7 +212,7 @@ test('stop: a stalled answer (1 s without a byte) is cut and the stop sent again
   await ctx.advance(1500, 50);
   ctx.unit.stall.delete('/config/xml.cgi');
   await ctx.advance(3500, 50);
-  const ack = await acking;
+  const ack = await ctx.until(acking, 'the ack');
   assert.equal(ack.success, true, String(ack.error));
   assert.ok(writesOf(ctx).length >= 2);
 });
@@ -277,7 +277,7 @@ test('stop: no password possible (refused twice) holds it; a new password sends 
   assert.equal(store.data.stopGuard.sent, false);
   await ctx.advance(10 * MINUTE, 500);
   assert.equal(writesOf(ctx).length, 0, 'no sign-in on its own');
-  await ctx.gladys.fake.configUpdated({ host: HOST, password: 'changed' });
+  await ctx.until(ctx.gladys.fake.configUpdated({ host: HOST, password: 'changed' }));
   await ctx.advance(2 * SECOND, 50);
   assert.deepEqual(writesOf(ctx), [STOP_WRITES], 'the stop first, at once');
   assert.equal(store.data.stopGuard.pending, false);
@@ -427,15 +427,15 @@ test('the secret never reaches the logs, even on failures', async (t) => {
   assert.ok(!JSON.stringify([ctx.logs, ctx.gladys.fake.connectionStatuses]).includes(PASSWORD));
 });
 
-test('the device of another unit: its features never command this one', async (t) => {
+test('the device of another unit: its features never command this one (refused on arrival, nothing read)', async (t) => {
   const ctx = await setup(t, { config: ALLOW });
   const other = 'ext:test-integration:atrea:id-zzz';
-  const ack = await ctx.gladys.fake.setValue(
-    { external_id: other },
-    { external_id: `${other}:fan-power` },
-    60,
-  );
+  const reads = ctx.core.reads();
+  // Bounded (press): a command that went on would fail here, never hang the runner.
+  const ack = await ctx.press('fan-power', 60, 200, other);
   assert.equal(ack.success, false);
+  assert.match(String(ack.error), /identifiant de la centrale a changé/);
   assert.equal(writesOf(ctx).length, 0);
+  assert.equal(ctx.core.reads(), reads, 'refused before any read of the unit');
   assert.ok(DEVICE);
 });

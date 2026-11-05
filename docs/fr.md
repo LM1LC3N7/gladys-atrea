@@ -134,11 +134,12 @@ Il ne peut échouer que dans ces cas, et la réponse le dit :
   adresse que celle configurée) : « non envoyé », gardé, et envoyé en
   premier dès qu’un mot de passe est enregistré ou que le bouton de test
   réussit ;
-- la session a expiré et la connexion de l’appui n’a pas eu de réponse à
-  temps (une connexion qui n’a même pas pu joindre la centrale est retentée
-  dans les 3,5 s ; une connexion partie n’est jamais envoyée deux fois dans
-  un appui : elle prend une place sur la centrale) : « non envoyé », gardé,
-  envoyé en premier à la lecture suivante ;
+- la session a expiré et la connexion de l’appui a échoué (pas de réponse
+  à temps, connexion fermée, réponse illisible ; une connexion qui n’a même
+  pas pu joindre la centrale est retentée dans les 3,5 s ; une connexion
+  partie n’est jamais envoyée deux fois dans un appui : elle prend une place
+  sur la centrale) : « non envoyé », gardé, envoyé en premier à la lecture
+  suivante ;
 - la centrale refuse le mot de passe : « non envoyé », gardé, envoyé en
   premier à la lecture suivante ;
 - la centrale ne peut pas être jointe dans les 3,5 s : « non envoyé » (ou

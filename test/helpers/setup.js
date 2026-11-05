@@ -107,18 +107,25 @@ export async function setup(
     const d = gladys.fake.devices.find((x) => x.external_id === device) ?? { external_id: device };
     return gladys.fake.setValue(d, { external_id: feature(role, device) }, value);
   };
-  // Bounded: an ack that never comes fails the test, never hangs it.
-  const press = async (role, value = 1, wait = 5 * SECOND) => {
-    const ack = fire(role, value);
+  // Bounded: a promise that never settles (on the mocked clock) fails the
+  // test after `max` of mocked time, it never holds the runner.
+  const until = async (promise, what = 'the promise', max = 10 * SECOND) => {
     let settled = false;
-    ack.then(
+    promise.then(
       () => (settled = true),
       () => (settled = true),
     );
+    // Given a chance first without moving the clock.
+    await settle();
+    for (let e = 0; e < max && !settled; e += 100) await advance(100, 50);
+    if (!settled) throw new Error(`${what} never settled`);
+    return promise;
+  };
+  // Bounded: an ack that never comes fails the test, never hangs it.
+  const press = async (role, value = 1, wait = 5 * SECOND, device = DEVICE) => {
+    const ack = fire(role, value, device);
     await advance(wait, 50);
-    for (let i = 0; i < 50 && !settled; i += 1) await advance(100, 50);
-    if (!settled) throw new Error('the ack never came');
-    return ack;
+    return until(ack, 'the ack', 5 * SECOND);
   };
   const state = (role) =>
     gladys.fake.states.findLast((s) => s.device_feature_external_id === feature(role));
@@ -133,6 +140,7 @@ export async function setup(
     logs,
     fire,
     press,
+    until,
     store,
     state,
     status,

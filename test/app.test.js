@@ -138,7 +138,7 @@ test('the password denied once: tried again at the next read; twice: refused, ke
   // The test button: one sign-in per press.
   const pressing = ctx.gladys.fake.action('test_connection');
   await ctx.advance(500);
-  const result = await pressing;
+  const result = await ctx.until(pressing, 'the test button');
   assert.equal(ctx.core.logins(), 3);
   assert.ok(result);
   assert.match(ctx.message(), /deux fois de suite/);
@@ -148,7 +148,7 @@ test('the password denied once: tried again at the next read; twice: refused, ke
   assert.equal(ctx.core.logins(), 3, 'still nothing on its own');
   const pressed = ctx.gladys.fake.action('test_connection');
   await ctx.advance(500);
-  await pressed;
+  await ctx.until(pressed, 'the test button');
   assert.equal(ctx.core.logins(), 4);
   assert.equal(ctx.status().connected, true);
   assert.equal(store.data.refused, null, 'lifted at the success');
@@ -162,7 +162,7 @@ test('a refusal kept in /data survives a restart with the same password, not a n
   const ctx = await setup(t, { store });
   assert.equal(ctx.core.logins(), 0);
   assert.match(ctx.message(), /deux fois de suite/);
-  await ctx.gladys.fake.configUpdated({ ...CFG, password: 'new-one' });
+  await ctx.until(ctx.gladys.fake.configUpdated({ ...CFG, password: 'new-one' }));
   await ctx.advance(MINUTE + 500, 100);
   assert.ok(ctx.core.logins() >= 1, 'a new password is tried');
 });
@@ -245,9 +245,9 @@ test('the test button and a scan never read sooner than the interval', async (t)
   const reads = ctx.core.reads();
   const pressing = ctx.gladys.fake.action('test_connection');
   await ctx.advance(200);
-  const result = await pressing;
+  const result = await ctx.until(pressing, 'the test button');
   assert.match(JSON.stringify(result), /Prochaine lecture|Next read/);
-  await ctx.gladys.fake.scanRequest();
+  await ctx.until(ctx.gladys.fake.scanRequest());
   await ctx.advance(500);
   assert.equal(ctx.core.reads(), reads);
 });
@@ -267,7 +267,7 @@ test('getConfig() failing in `connected` is tried again, spaced, without end, th
 test('a reconnection to Gladys never reads the unit again sooner', async (t) => {
   const ctx = await setup(t);
   const reads = ctx.core.reads();
-  await ctx.app.connectedWith(async () => CFG);
+  await ctx.until(ctx.app.connectedWith(async () => CFG));
   await ctx.advance(500);
   assert.equal(ctx.core.reads(), reads);
   assert.equal(ctx.status().connected, true);
@@ -297,7 +297,7 @@ test('another unit at the address: values not published to the old device, comma
   assert.equal(ctx.core.writes().length, 0);
   const pressed = ctx.gladys.fake.action('test_connection');
   await ctx.advance(500);
-  await pressed;
+  await ctx.until(pressed, 'the test button');
   assert.ok(
     ctx.gladys.fake.discoveredDevices.some(
       (d) => d.external_id === 'ext:test-integration:atrea:id-xyz9876',
@@ -347,7 +347,7 @@ test('/data that never answers a load is unreadable, never blocking', async (t) 
 test('a configuration saved unchanged neither restarts nor reads', async (t) => {
   const ctx = await setup(t);
   const reads = ctx.core.reads();
-  await ctx.gladys.fake.configUpdated(CFG);
+  await ctx.until(ctx.gladys.fake.configUpdated(CFG));
   await ctx.advance(500);
   assert.equal(ctx.core.reads(), reads);
   assert.equal(ctx.status().connected, true);

@@ -48,7 +48,7 @@ test('I2-r2 (K16): a read whose sign-in we cut took a place: the "denied" after 
   unit.delays['/config/login.cgi'] = 8000; // the read cuts it (5 s without a byte)
   const connecting = ctx.gladys.connect();
   await ctx.advance(10 * SECOND, 100);
-  await connecting;
+  await ctx.until(connecting, 'the connection');
   assert.equal(unit.core.sessions.length, 1, 'the unit opened the session we never saw');
   unit.delays['/config/login.cgi'] = 10;
   await ctx.advance(3 * MINUTE, 200);
@@ -72,10 +72,11 @@ test("I2-r2 (N7, m1'): the same password saved again sends the kept stop at once
   await ctx.advance(30 * SECOND, 500);
   assert.equal(writesOf(ctx).length, 0);
   ctx.core.password = PASSWORD;
-  await ctx.gladys.fake.configUpdated(config);
+  await ctx.until(ctx.gladys.fake.configUpdated(config));
   await ctx.advance(2 * SECOND, 50);
   assert.deepEqual(writesOf(ctx), [STOP_WRITES]);
-  assert.doesNotMatch(ctx.message(), /refusé le mot de passe/);
+  assert.doesNotMatch(ctx.message(), /refusé le mot de passe|mal répondu/);
+  assert.equal(ctx.status().connected, true, 'a session works: connected again');
 });
 
 test('I1-r2 (N1): a sign-in closed unanswered is never sent twice in a press; the answer says why', async (t) => {
@@ -86,7 +87,7 @@ test('I1-r2 (N1): a sign-in closed unanswered is never sent twice in a press; th
   const ack = await ctx.press('stop');
   assert.equal(ack.success, false);
   assert.equal(loginsSent(ctx) - before, 1, 'one sign-in per press');
-  assert.match(String(ack.error), /connexion de cet appui/);
+  assert.match(String(ack.error), /connexion de cet appui a échoué/);
 });
 
 test('m5\': a unit off but still in the weekly program is never "seen off"; the stop is sent again', async (t) => {

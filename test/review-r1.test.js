@@ -124,7 +124,7 @@ test('I2: a new password with the same 6-bit mark as the refused one lifts the r
   }
   assert.ok(collision);
   ctx.core.password = collision;
-  await ctx.gladys.fake.configUpdated({ host: HOST, password: collision });
+  await ctx.until(ctx.gladys.fake.configUpdated({ host: HOST, password: collision }));
   await ctx.advance(2 * SECOND, 50);
   assert.equal(ctx.app.refused, false);
   assert.deepEqual(writesOf(ctx), [STOP_WRITES]);
@@ -134,7 +134,7 @@ test('I2: the same password saved again lifts the refusal for one try; the kept 
   const { ctx } = await refusedWithKeptStop(t);
   // The other user signed out on the unit side (too many users was the cause).
   ctx.core.password = PASSWORD;
-  await ctx.gladys.fake.configUpdated(CFG);
+  await ctx.until(ctx.gladys.fake.configUpdated(CFG));
   await ctx.advance(2 * SECOND, 50);
   assert.deepEqual(writesOf(ctx), [STOP_WRITES]);
   assert.equal(ctx.app.refused, false);
@@ -143,7 +143,7 @@ test('I2: the same password saved again lifts the refusal for one try; the kept 
 test('I2: the same password saved again and still denied: refused again at once (one try)', async (t) => {
   const { ctx } = await refusedWithKeptStop(t);
   const logins = ctx.core.logins();
-  await ctx.gladys.fake.configUpdated(CFG);
+  await ctx.until(ctx.gladys.fake.configUpdated(CFG));
   await ctx.advance(5 * SECOND, 50);
   assert.equal(ctx.core.logins() - logins, 1);
   assert.equal(ctx.app.refused, true);
@@ -152,7 +152,7 @@ test('I2: the same password saved again and still denied: refused again at once 
 test('I2: a reconnection to Gladys never lifts the refusal', async (t) => {
   const { ctx } = await refusedWithKeptStop(t);
   const logins = ctx.core.logins();
-  await ctx.app.connectedWith(async () => CFG);
+  await ctx.until(ctx.app.connectedWith(async () => CFG));
   await ctx.advance(2 * SECOND, 50);
   assert.equal(ctx.core.logins(), logins);
   assert.equal(ctx.app.refused, true);
@@ -254,7 +254,7 @@ test('m2: right after a restart, the test button never reads sooner than the int
   const reads = ctx.core.reads();
   const pressing = ctx.gladys.fake.action('test_connection');
   await ctx.advance(200);
-  await pressing;
+  await ctx.until(pressing, 'the test button');
   assert.equal(ctx.core.reads(), reads);
 });
 
@@ -325,7 +325,7 @@ test('m6: a stop to the configured address never joins a resend to another addre
   await ctx.advance(300);
   const ack = ctx.fire('stop');
   await ctx.advance(10 * SECOND, 50);
-  await connecting;
-  assert.equal((await ack).success, true);
+  await ctx.until(connecting, 'the connection');
+  assert.equal((await ctx.until(ack, 'the ack')).success, true);
   assert.deepEqual(writesOf(ctx).at(-1), STOP_WRITES);
 });

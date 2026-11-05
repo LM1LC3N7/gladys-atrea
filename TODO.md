@@ -38,6 +38,14 @@ up to date at the end of every milestone.
       and a real cut sign-in; the status after a session that works; a unit
       off but not in the manual program is never "seen off" (the stop is sent
       again). Tests in `test/review-r2.test.js`.
+- [x] **Review r3 fixes** (2026-11-05): a test for each guard of milestone 1
+      whose mutant survived (the kept stop sent as soon as the configuration
+      is read after a restart, strict flags, 300 states a minute, the unit ID
+      gone or another one, a write answered 404, the status after a stop that
+      signed in); every wait of the tests bounded by its own deadline
+      (`until()` of the helper); the answer of a stop whose sign-in failed
+      says "failed", not "no answer in time". Tests in
+      `test/review-r3.test.js`.
 - [ ] **Milestone 2 — real unit**: run against a real RD5 unit (see "To check").
 - [ ] **Milestone 3 — more**: alarm reset (C10005) and filter
       acknowledgement (C10007) as buttons behind the option (one-shot

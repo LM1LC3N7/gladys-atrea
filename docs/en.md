@@ -124,10 +124,11 @@ It can fail in these cases only, and the answer says so:
   refused twice, or the stop goes to another address than the configured
   one): "not sent", kept, and sent first as soon as a password is saved or
   the test button succeeds;
-- the session expired and the sign-in of the press got no answer in time
-  (a sign-in that could not even connect is tried again within the 3.5 s;
-  one that left is never sent twice in a press: it takes a place on the
-  unit): "not sent", kept, sent first at the next read;
+- the session expired and the sign-in of the press failed (no answer in
+  time, connection closed, unreadable answer; a sign-in that could not even
+  connect is tried again within the 3.5 s; one that left is never sent
+  twice in a press: it takes a place on the unit): "not sent", kept, sent
+  first at the next read;
 - the unit refuses the password: "not sent", kept, sent first at the next
   read;
 - the unit cannot be reached within 3.5 s: "not sent" (or "not sent yet"
