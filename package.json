@@ -1,6 +1,6 @@
 {
   "name": "gladys-atrea",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Gladys Assistant external integration for Atrea heat recovery ventilation (RD5 regulation) over its local web interface: mode, fan power, temperatures, heating and cooling, filters, warnings and alerts; optional mode and power commands, stop never held back. Unofficial, not affiliated with Atrea.",
   "type": "module",
