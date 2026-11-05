@@ -243,6 +243,10 @@ export const ERRORS = {
     'Stop not sent: the unit refused the password. It is kept and leaves first at the next read, or as soon as a password is saved or "Test the connection" succeeds.',
     'Arrêt non envoyé : la centrale a refusé le mot de passe. Il est gardé et part en premier à la prochaine lecture, ou dès qu’un mot de passe est enregistré ou que « Tester la connexion » réussit.',
   ),
+  stopNoSession: both(
+    'Stop not sent: the session expired and the sign-in of this press got no answer in time. It is kept and leaves first at the next read.',
+    'Arrêt non envoyé : la session a expiré et la connexion de cet appui n’a pas eu de réponse à temps. Il est gardé et part en premier à la prochaine lecture.',
+  ),
   stopPending: both(
     'Stop not sent yet, still trying to reach the unit: it is kept and leaves first at the next read; check the unit in a few seconds.',
     'Arrêt pas encore envoyé, la centrale est encore en cours de connexion : il est gardé et part en premier à la prochaine lecture ; vérifiez la centrale dans quelques secondes.',

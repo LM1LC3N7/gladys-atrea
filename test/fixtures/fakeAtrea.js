@@ -207,6 +207,11 @@ export function fakeAtrea(options = {}) {
     closeOn: new Set(),
     big: new Set(),
     applyClosedWrites: false,
+    /** Sign-ins applied even after their connection closed (a place taken we never saw). */
+    applyClosedLogins: false,
+    /** The next connections refused; `refuseAfter403`: that many refused right after a "403" page. */
+    refuseNext: 0,
+    refuseAfter403: 0,
     hosts: [],
     /** The raw request texts received. */
     raw: [],
@@ -227,9 +232,14 @@ export function fakeAtrea(options = {}) {
       setTimeout(() => {
         if (socket.destroyed) {
           if (unit.applyClosedWrites && path === '/config/xml.cgi') core.answer(url);
+          if (unit.applyClosedLogins && path === '/config/login.cgi') core.answer(url);
           return;
         }
         const { status, body } = core.answer(url);
+        if (unit.refuseAfter403 > 0 && body.includes('403 Forbidden')) {
+          unit.refuseNext = unit.refuseAfter403;
+          unit.refuseAfter403 = 0;
+        }
         if (unit.stall.has(path)) {
           socket.emit('data', Buffer.from(`HTTP/1.0 ${status} OK\r\nContent-Length: 999\r\n\r\n<`));
           return;
@@ -261,7 +271,9 @@ export function fakeAtrea(options = {}) {
       unit.connections += 1;
       setTimeout(() => {
         if (socket.destroyed) return;
-        if (unit.down || unit.downHosts.has(host)) {
+        const refuse = unit.refuseNext > 0;
+        if (refuse) unit.refuseNext -= 1;
+        if (refuse || unit.down || unit.downHosts.has(host)) {
           unit.refused += 1;
           socket.emit('error', Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }));
           return;

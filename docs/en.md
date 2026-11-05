@@ -114,7 +114,8 @@ the kept stop, else the last valid one kept in /data). It is tried again for
 cut and the stop sent again. When the session expired, it signs in once per
 press (the sign-in may take the whole 3.5 s: each sign-in takes a place on
 the unit). It is confirmed when the unit reads the mode off (or stopping)
-and the manual program.
+and the manual program; a unit read off but still in another program is
+never taken as stopped: the stop is sent again (three sends at most).
 
 It can fail in these cases only, and the answer says so:
 
@@ -123,6 +124,10 @@ It can fail in these cases only, and the answer says so:
   refused twice, or the stop goes to another address than the configured
   one): "not sent", kept, and sent first as soon as a password is saved or
   the test button succeeds;
+- the session expired and the sign-in of the press got no answer in time
+  (a sign-in that could not even connect is tried again within the 3.5 s;
+  one that left is never sent twice in a press: it takes a place on the
+  unit): "not sent", kept, sent first at the next read;
 - the unit refuses the password: "not sent", kept, sent first at the next
   read;
 - the unit cannot be reached within 3.5 s: "not sent" (or "not sent yet"

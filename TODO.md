@@ -31,6 +31,13 @@ up to date at the end of every milestone.
       status at once after a stop, restart timing, linear parsing, notices,
       stop confirmed by the manual program too, a stop joins only a stop to
       the same address (m1-m6). Tests in `test/review-r1.test.js`.
+- [x] **Review r2 fixes** (2026-11-05): a sign-in counts as tried for the
+      stop only once it left (a refused connection is tried again within the
+      3.5 s), a readable answer when it got no answer in time; the chunked
+      test bounded and asynchronous; tests for the same password saved again
+      and a real cut sign-in; the status after a session that works; a unit
+      off but not in the manual program is never "seen off" (the stop is sent
+      again). Tests in `test/review-r2.test.js`.
 - [ ] **Milestone 2 — real unit**: run against a real RD5 unit (see "To check").
 - [ ] **Milestone 3 — more**: alarm reset (C10005) and filter
       acknowledgement (C10007) as buttons behind the option (one-shot

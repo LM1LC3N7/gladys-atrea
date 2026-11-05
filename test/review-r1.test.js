@@ -269,7 +269,7 @@ test('m3: the login answer is parsed in linear time (blanks, CR LF)', () => {
   });
 });
 
-test('m3: a chunked answer in tiny packets is read in linear time', async () => {
+test('m3: a chunked answer in tiny packets is read in linear time (bounded, never hangs)', async (t) => {
   const socket = new EventEmitter();
   socket.write = () => {};
   socket.destroy = () => {};
@@ -278,18 +278,28 @@ test('m3: a chunked answer in tiny packets is read in linear time', async () => 
     port: 80,
     path: '/x',
     connect: () => socket,
-    timeoutMs: 60_000,
+    timeoutMs: 20_000,
     maxBody: 4 * 1024 * 1024,
   });
+  // Ended whatever happens: no timer of the request outlives the test.
+  t.after(() => request.abort('test over'));
+  request.promise.catch(() => {});
   socket.emit('connect');
   socket.emit('data', Buffer.from('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n'));
   const started = performance.now();
   const piece = Buffer.from('a\r\n0123456789\r\n');
-  for (let i = 0; i < 200_000; i += 1) socket.emit('data', piece);
+  // 100 000 packets, the event loop given back every 1 000: a quadratic reader
+  // passes the deadline and fails here, it never holds the runner.
+  for (let i = 0; i < 100_000; i += 1) {
+    socket.emit('data', piece);
+    if (i % 1000 === 999) {
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.ok(performance.now() - started < 3000, `too slow: ${i + 1} packets`);
+    }
+  }
   socket.emit('data', Buffer.from('0\r\n\r\n'));
   const { body } = await request.promise;
-  assert.equal(body.length, 2_000_000);
-  assert.ok(performance.now() - started < 3000, `${performance.now() - started} ms`);
+  assert.equal(body.length, 1_000_000);
   assert.ok(ERROR_KINDS.PROTOCOL);
 });
 

@@ -107,9 +107,17 @@ export async function setup(
     const d = gladys.fake.devices.find((x) => x.external_id === device) ?? { external_id: device };
     return gladys.fake.setValue(d, { external_id: feature(role, device) }, value);
   };
+  // Bounded: an ack that never comes fails the test, never hangs it.
   const press = async (role, value = 1, wait = 5 * SECOND) => {
     const ack = fire(role, value);
+    let settled = false;
+    ack.then(
+      () => (settled = true),
+      () => (settled = true),
+    );
     await advance(wait, 50);
+    for (let i = 0; i < 50 && !settled; i += 1) await advance(100, 50);
+    if (!settled) throw new Error('the ack never came');
     return ack;
   };
   const state = (role) =>

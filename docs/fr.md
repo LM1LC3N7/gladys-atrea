@@ -121,7 +121,9 @@ l’appui ; une réponse à l’arrêt qui cesse d’arriver pendant 1 s est cou
 et l’arrêt renvoyé. Si la session a expiré, il se reconnecte une fois par
 appui (la connexion peut prendre les 3,5 s : chaque connexion prend une
 place sur la centrale). Il est confirmé quand la centrale relit le mode
-arrêt (ou en cours d’arrêt) et le programme manuel.
+arrêt (ou en cours d’arrêt) et le programme manuel ; une centrale lue
+arrêtée mais encore dans un autre programme n’est jamais tenue pour arrêtée :
+l’arrêt est renvoyé (trois envois au plus).
 
 Il ne peut échouer que dans ces cas, et la réponse le dit :
 
@@ -132,6 +134,11 @@ Il ne peut échouer que dans ces cas, et la réponse le dit :
   adresse que celle configurée) : « non envoyé », gardé, et envoyé en
   premier dès qu’un mot de passe est enregistré ou que le bouton de test
   réussit ;
+- la session a expiré et la connexion de l’appui n’a pas eu de réponse à
+  temps (une connexion qui n’a même pas pu joindre la centrale est retentée
+  dans les 3,5 s ; une connexion partie n’est jamais envoyée deux fois dans
+  un appui : elle prend une place sur la centrale) : « non envoyé », gardé,
+  envoyé en premier à la lecture suivante ;
 - la centrale refuse le mot de passe : « non envoyé », gardé, envoyé en
   premier à la lecture suivante ;
 - la centrale ne peut pas être jointe dans les 3,5 s : « non envoyé » (ou

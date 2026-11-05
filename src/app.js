@@ -681,6 +681,9 @@ export class AtreaApp {
         // Cut by us after it left: the unit may have opened a session we never saw.
         // The next "denied" may come from that lost place: it never counts as a refusal.
         this.loginCut = true;
+      } else if (err && typeof err === 'object') {
+        // Never left (refused connection, too late): not a sign-in tried.
+        err.loginUnsent = true;
       }
       throw err;
     }
@@ -714,8 +717,15 @@ export class AtreaApp {
       throw new AtreaError(ERROR_KINDS.FORBIDDEN, 'session needed');
     }
     this.code = '';
+    try {
+      await this.login(line, options.loginOptions ?? options);
+    } catch (err) {
+      // Counted as tried only when the sign-in left (or was answered): a
+      // connection refused before it is tried again within the budget.
+      if (!err?.loginUnsent && err?.kind !== ERROR_KINDS.NO_LOGIN) onLogin?.();
+      throw err;
+    }
     onLogin?.();
-    await this.login(line, options.loginOptions ?? options);
     const second = await this.get(line, build(this.code), options);
     if (isForbidden(second.status, second.body)) {
       notApplied?.();
@@ -751,6 +761,12 @@ export class AtreaApp {
   /** A request answered within a valid session: the refusal count starts again. */
   noteSession() {
     this.denials = 0;
+    const u = this.unit;
+    if (u.online === false && [ERROR_KINDS.DENIED, ERROR_KINDS.NO_LOGIN].includes(u.error)) {
+      // A session works now: the last read's refusal is no longer the state (read again soon).
+      u.online = u.values ? true : undefined;
+      u.error = undefined;
+    }
     if (this.refused) {
       this.refused = false;
       this.logger.info('Atrea: the password works again');
@@ -1780,6 +1796,7 @@ export class AtreaApp {
       this.logger.warn(`Atrea: stop failed (${reason})`);
       if (!state.written) {
         if (outcome.err.kind === ERROR_KINDS.NO_LOGIN) throw this.refusal(ERRORS.stopHeld);
+        if (outcome.err.kind === ERROR_KINDS.FORBIDDEN) throw this.refusal(ERRORS.stopNoSession);
         if (outcome.err.kind === ERROR_KINDS.DENIED) {
           throw this.refusal(this.refused ? ERRORS.stopHeld : ERRORS.stopDenied);
         }
@@ -1790,11 +1807,11 @@ export class AtreaApp {
     if (outcome.back !== undefined && target.unit === this.unitKey()) {
       this.noteValues(outcome.back, { fromCommand: true });
     }
-    throw this.refusal(
-      ERRORS.sentUnconfirmed(
-        word(both('still running', 'toujours en marche'), this.config.language),
-      ),
-    );
+    const why =
+      outcome.back?.running === false
+        ? both('program not manual', 'programme non manuel')
+        : both('still running', 'toujours en marche');
+    throw this.refusal(ERRORS.sentUnconfirmed(word(why, this.config.language)));
   }
 
   /** The kept stop ends (a mode chosen, or the unit started elsewhere). */
@@ -1846,7 +1863,16 @@ export class AtreaApp {
       this.liftStopGuard('mode chosen after the stop');
       return;
     }
-    if (values.running === false) {
+    const manual = values.program === undefined || values.program === 'manual';
+    if (values.running === false && !manual) {
+      // Off but still in another program: the stop is not applied (the program
+      // would start the unit again at its next slot). Never "seen off".
+      if (stop.onReads !== 0) {
+        stop.onReads = 0;
+        this.persistStopGuard().catch(() => {});
+      }
+      if (stop.seenOff) return;
+    } else if (values.running === false) {
       if (!stop.seenOff || stop.onReads !== 0 || stop.pending) {
         stop.seenOff = true;
         stop.pending = false;
@@ -1854,15 +1880,14 @@ export class AtreaApp {
         this.persistStopGuard().catch(() => {});
       }
       return;
-    }
-    if (values.running !== true) {
+    } else if (values.running !== true) {
       if (stop.onReads !== 0) {
         stop.onReads = 0;
         this.persistStopGuard().catch(() => {});
       }
       return;
     }
-    if (stop.seenOff) {
+    if (stop.seenOff && values.running === true) {
       stop.onReads += 1;
       if (stop.onReads >= 2) {
         this.liftStopGuard('unit read running twice in a row after the stop, started elsewhere');
